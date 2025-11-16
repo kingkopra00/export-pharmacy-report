@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أداة إنشاء وصولات المخزون (نسخة 9.3)</title>
+    <title>أداة إنشاء وصولات المخزون (نسخة 9.4 - إصلاح الأخطاء)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     
     <style>
@@ -167,7 +167,7 @@
         }
         input:disabled { background-color: #f3f4f6; cursor: not-allowed; color: #555; }
 
-        .radio-group { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.5rem; padding: 0.8rem; background: var(--bg-light); border-radius: var(--radius-md); } /* تعديل: عمودي للموبايل */
+        .radio-group { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.5rem; padding: 0.8rem; background: var(--bg-light); border-radius: var(--radius-md); }
         .radio-option { display: flex; align-items: center; gap: 0.5rem; }
         .hidden { display: none; }
 
@@ -209,7 +209,7 @@
         }
         #itemsTable td { background: white; }
         
-        /* *** تعديل: منطقة رفع الصور المتعددة *** */
+        /* منطقة رفع الصور المتعددة */
         .image-preview-container {
             display: block; /* *** تعديل: جعل الحاوية بلوك *** */
             margin-top: 1rem;
@@ -737,8 +737,14 @@
         
         // --- *** وظيفة جديدة لإنشاء اسم الملف *** ---
         function generateFilename(institution, items) {
-            const today = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
-            
+            // *** تعديل: إصلاح خطأ .toISOString ***
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0'); // +1 لأن الأشهر تبدأ من 0
+            const day = String(d.getDate()).padStart(2, '0');
+            const today = `${year}-${month}-${day}`;
+            // *** نهاية التعديل ***
+
             // تنظيف اسم المؤسسة (استبدال المسافات بـ '_')
             const instName = institution.replace(/ /g, '_');
             
@@ -751,44 +757,46 @@
         
         // --- *** وظيفة مُعدلة لإنشاء الوصل (تدعم المواد والصور المتعددة) *** ---
         async function generateVoucher(event) {
-            event.preventDefault(); 
-
-            // 1. التحقق من صحة الفورم الأساسي
-            if (document.getElementById('institution').value === "") {
-                 alert("الرجاء اختيار اسم المؤسسة (الجهة).");
-                 return;
-            }
-            // 2. التحقق من إضافة مواد
-            if (addedItems.length === 0) {
-                alert("الرجاء إضافة مادة واحدة على الأقل للجدول قبل إنشاء الوصل.");
-                return;
-            }
-
-            // 3. جمع البيانات الأساسية
-            const formData = {
-                operationType: document.querySelector('input[name="operationType"]:checked').value,
-                institution: document.getElementById('institution').value,
-                voucherNumber: document.getElementById('voucherNumber').value || "غير محدد",
-                notes: document.getElementById('notes').value.trim(),
-                currentDate: new Date().toLocaleString('ar-IQ', { dateStyle: 'full', timeStyle: 'short' })
-            };
-            
-            const instLabel = (formData.operationType === 'إدخال مخزني') ? 'الجهة المجهزة' : 'الجهة المستلمة';
-
-            // 4. معالجة الصور المتعددة (من مصفوفتنا الخاصة)
-            const imageFiles = addedImageFiles; // *** تعديل: استخدام مصفوفتنا ***
-            const imagesBase64 = [];
-            
-            const imagePromises = imageFiles.map(file => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsDataURL(file);
-                });
-            });
-
+            // *** إضافة: try...catch لمعرفة أي خطأ يحدث ***
             try {
+                event.preventDefault(); 
+
+                // 1. التحقق من صحة الفورم الأساسي
+                if (document.getElementById('institution').value === "") {
+                     alert("الرجاء اختيار اسم المؤسسة (الجهة).");
+                     return;
+                }
+                // 2. التحقق من إضافة مواد
+                if (addedItems.length === 0) {
+                    alert("الرجاء إضافة مادة واحدة على الأقل للجدول قبل إنشاء الوصل.");
+                    return;
+                }
+
+                // 3. جمع البيانات الأساسية
+                const formData = {
+                    operationType: document.querySelector('input[name="operationType"]:checked').value,
+                    institution: document.getElementById('institution').value,
+                    voucherNumber: document.getElementById('voucherNumber').value || "غير محدد",
+                    notes: document.getElementById('notes').value.trim(),
+                    currentDate: new Date().toLocaleString('ar-IQ', { dateStyle: 'full', timeStyle: 'short' })
+                };
+                
+                const instLabel = (formData.operationType === 'إدخال مخزني') ? 'الجهة المجهزة' : 'الجهة المستلمة';
+
+                // 4. معالجة الصور المتعددة (من مصفوفتنا الخاصة)
+                const imageFiles = addedImageFiles; // *** تعديل: استخدام مصفوفتنا ***
+                const imagesBase64 = [];
+                
+                const imagePromises = imageFiles.map(file => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = (e) => reject(e);
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                
                 const loadedImages = await Promise.all(imagePromises);
                 imagesBase64.push(...loadedImages);
                 
@@ -799,228 +807,235 @@
                 openPrintWindow(formData, instLabel, addedItems, imagesBase64, dynamicFilename);
 
             } catch (error) {
-                console.error("خطأ أثناء تحميل الصور:", error);
-                alert("حدث خطأ أثناء معالجة الصور المرفقة.");
+                // *** إضافة: إظهار الخطأ للمستخدم ***
+                console.error("خطأ فادح في generateVoucher:", error);
+                alert(`حدث خطأ فادح:\n\n${error.message}\n\nيرجى أخذ لقطة شاشة وإرسالها للمطور.`);
             }
         }
         
         // --- *** وظيفة مُعدلة لفتح نافذة الطباعة (التصميم الرسمي) *** ---
         function openPrintWindow(data, instLabel, items, imagesBase64, dynamicFilename) {
-            
-            const printStyles = `
-                body {
-                    font-family: 'Tahoma', sans-serif;
-                    color: #000;
-                    margin: 0;
-                    padding: 10px;
-                    background: #fff;
-                }
-                .voucher-container {
-                    width: 95%;
-                    margin: 20px auto;
-                    padding: 20px;
-                    border: 2px solid #000;
-                }
-                .header-container {
-                    text-align: center;
-                    border-bottom: 2px solid #000;
-                    padding-bottom: 10px;
-                }
-                h1 {
-                    font-size: 1.5rem;
-                    margin: 0;
-                }
-                h2 {
-                    font-size: 1.3rem;
-                    margin: 5px 0;
-                }
-                .doc-info {
-                    display: flex;
-                    justify-content: space-between;
-                    padding: 10px 0;
-                    font-size: 1rem;
-                    font-weight: bold;
-                }
-                .info-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 20px 0;
-                    font-size: 1rem;
-                }
-                .info-table th, .info-table td {
-                    border: 1px solid #777;
-                    padding: 8px;
-                    text-align: right;
-                }
-                .info-table th {
-                    background-color: #f0f0f0;
-                    width: 120px;
-                }
-                
-                .items-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 20px;
-                    font-size: 1rem;
-                }
-                .items-table th, .items-table td {
-                    border: 1px solid #000;
-                    padding: 8px;
-                    text-align: center;
-                }
-                .items-table th {
-                    background-color: #e0e0e0;
-                }
-                .items-table td:nth-child(2) { /* عمود اسم المادة */
-                     text-align: right;
-                     width: 40%;
-                }
-                .signatures {
-                    margin-top: 50px;
-                    display: flex;
-                    justify-content: space-around;
-                    font-size: 1rem;
-                    font-weight: bold;
-                }
-                .signatures div {
-                    text-align: center;
-                }
-                .signatures span {
-                    display: block;
-                    margin-top: 40px;
-                    padding-top: 5px;
-                }
-                .notes-section, .attachments-section {
-                    margin-top: 20px;
-                }
-                .notes-section p {
-                    white-space: pre-wrap;
-                    border: 1px solid #ccc;
-                    padding: 10px;
-                    min-height: 50px;
-                }
-                
-                /* *** تعديل: تنسيق الصور في الطباعة (عمودي) *** */
-                .attachments-section img {
-                    max-width: 90%; /* عرض أكبر */
-                    display: block; /* جعلها بلوك */
-                    border: 1px solid #ccc;
-                    margin: 10px auto; /* مسافة وتوسيط */
-                }
-                
-                /* تنسيقات الطباعة */
-                @media print {
-                    @page { size: A4; margin: 1cm; }
-                    body { margin: 0; }
-                    .voucher-container { border: none; box-shadow: none; width: 100%; }
-                    .attachments-section {
-                        page-break-before: always; /* بدء المرفقات في صفحة جديدة */
+            try {
+                const printStyles = `
+                    body {
+                        font-family: 'Tahoma', sans-serif;
+                        color: #000;
+                        margin: 0;
+                        padding: 10px;
+                        background: #fff;
                     }
-                }
-            `;
-            
-            // --- بناء جدول المواد ---
-            let itemsTableHtml = '';
-            items.forEach((item, index) => {
-                itemsTableHtml += `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${item.name}</td>
-                        <td>${item.category}</td>
-                        <td>${item.quantity}</td>
-                        <td>${item.warehouse}</td>
-                    </tr>
+                    .voucher-container {
+                        width: 95%;
+                        margin: 20px auto;
+                        padding: 20px;
+                        border: 2px solid #000;
+                    }
+                    .header-container {
+                        text-align: center;
+                        border-bottom: 2px solid #000;
+                        padding-bottom: 10px;
+                    }
+                    h1 {
+                        font-size: 1.5rem;
+                        margin: 0;
+                    }
+                    h2 {
+                        font-size: 1.3rem;
+                        margin: 5px 0;
+                    }
+                    .doc-info {
+                        display: flex;
+                        justify-content: space-between;
+                        padding: 10px 0;
+                        font-size: 1rem;
+                        font-weight: bold;
+                    }
+                    .info-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 20px 0;
+                        font-size: 1rem;
+                    }
+                    .info-table th, .info-table td {
+                        border: 1px solid #777;
+                        padding: 8px;
+                        text-align: right;
+                    }
+                    .info-table th {
+                        background-color: #f0f0f0;
+                        width: 120px;
+                    }
+                    
+                    .items-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 20px;
+                        font-size: 1rem;
+                    }
+                    .items-table th, .items-table td {
+                        border: 1px solid #000;
+                        padding: 8px;
+                        text-align: center;
+                    }
+                    .items-table th {
+                        background-color: #e0e0e0;
+                    }
+                    .items-table td:nth-child(2) { /* عمود اسم المادة */
+                         text-align: right;
+                         width: 40%;
+                    }
+                    .signatures {
+                        margin-top: 50px;
+                        display: flex;
+                        justify-content: space-around;
+                        font-size: 1rem;
+                        font-weight: bold;
+                    }
+                    .signatures div {
+                        text-align: center;
+                    }
+                    .signatures span {
+                        display: block;
+                        margin-top: 40px;
+                        padding-top: 5px;
+                    }
+                    .notes-section, .attachments-section {
+                        margin-top: 20px;
+                    }
+                    .notes-section p {
+                        white-space: pre-wrap;
+                        border: 1px solid #ccc;
+                        padding: 10px;
+                        min-height: 50px;
+                    }
+                    
+                    /* *** تعديل: تنسيق الصور في الطباعة (عمودي) *** */
+                    .attachments-section img {
+                        max-width: 90%; /* عرض أكبر */
+                        display: block; /* جعلها بلوك */
+                        border: 1px solid #ccc;
+                        margin: 10px auto; /* مسافة وتوسيط */
+                    }
+                    
+                    /* تنسيقات الطباعة */
+                    @media print {
+                        @page { size: A4; margin: 1cm; }
+                        body { margin: 0; }
+                        .voucher-container { border: none; box-shadow: none; width: 100%; }
+                        .attachments-section {
+                            page-break-before: always; /* بدء المرفقات في صفحة جديدة */
+                        }
+                    }
                 `;
-            });
-            
-            // --- بناء قسم المرفقات ---
-            let attachmentsHtml = '';
-            if (imagesBase64.length > 0) {
-                attachmentsHtml = '<div class="attachments-section"><h3>المرفقات:</h3>';
-                imagesBase64.forEach(imgSrc => {
-                    attachmentsHtml += `<img src="${imgSrc}" alt="مرفق">`;
+                
+                // --- بناء جدول المواد ---
+                let itemsTableHtml = '';
+                items.forEach((item, index) => {
+                    itemsTableHtml += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${item.name}</td>
+                            <td>${item.category}</td>
+                            <td>${item.quantity}</td>
+                            <td>${item.warehouse}</td>
+                        </tr>
+                    `;
                 });
-                attachmentsHtml += '</div>';
-            }
-            
-            // --- بناء قسم الملاحظات ---
-            let notesHtml = '';
-            if (data.notes) {
-                notesHtml = `
-                    <div class="notes-section">
-                        <h3>ملاحظات:</h3>
-                        <p>${data.notes}</p>
-                    </div>
-                `;
-            }
-
-            // --- بناء الصفحة الكاملة ---
-            let htmlContent = `
-                <!DOCTYPE html>
-                <html dir="rtl" lang="ar">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>${dynamicFilename}</title>
-                    <style>${printStyles}</style>
-                </head>
-                <body>
-                    <div class="voucher-container">
-                        <div class="header-container">
-                            <h1>الجمهورية العراقية</h1>
-                            <h2>وزارة الصحة / دائرة صحة المثنى</h2>
+                
+                // --- بناء قسم المرفقات ---
+                let attachmentsHtml = '';
+                if (imagesBase64.length > 0) {
+                    attachmentsHtml = '<div class="attachments-section"><h3>المرفقات:</h3>';
+                    imagesBase64.forEach(imgSrc => {
+                        attachmentsHtml += `<img src="${imgSrc}" alt="مرفق">`;
+                    });
+                    attachmentsHtml += '</div>';
+                }
+                
+                // --- بناء قسم الملاحظات ---
+                let notesHtml = '';
+                if (data.notes) {
+                    notesHtml = `
+                        <div class="notes-section">
+                            <h3>ملاحظات:</h3>
+                            <p>${data.notes}</p>
                         </div>
-                        
-                        <div class="doc-info">
-                            <span>التاريخ: ${data.currentDate}</span>
-                            <span>رقم الوصل: ${data.voucherNumber}</span>
-                        </div>
-                        
-                        <h2 style="text-align:center; background: #e0e0e0; padding: 5px;">وصل ${data.operationType}</h2>
-                        
-                        <table class="info-table">
-                            <tr>
-                                <th>${instLabel}</th>
-                                <td>${data.institution}</td>
-                            </tr>
-                        </table>
+                    `;
+                }
 
-                        <table class="items-table">
-                            <thead>
+                // --- بناء الصفحة الكاملة ---
+                let htmlContent = `
+                    <!DOCTYPE html>
+                    <html dir="rtl" lang="ar">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>${dynamicFilename}</title>
+                        <style>${printStyles}</style>
+                    </head>
+                    <body>
+                        <div class="voucher-container">
+                            <div class="header-container">
+                                <h1>الجمهورية العراقية</h1>
+                                <h2>وزارة الصحة / دائرة صحة المثنى</h2>
+                            </div>
+                            
+                            <div class="doc-info">
+                                <span>التاريخ: ${data.currentDate}</span>
+                                <span>رقم الوصل: ${data.voucherNumber}</span>
+                            </div>
+                            
+                            <h2 style="text-align:center; background: #e0e0e0; padding: 5px;">وصل ${data.operationType}</h2>
+                            
+                            <table class="info-table">
                                 <tr>
-                                    <th>ت</th>
-                                    <th>اسم المادة</th>
-                                    <th>الفئة</th>
-                                    <th>العدد</th>
-                                    <th>المخزن</th>
+                                    <th>${instLabel}</th>
+                                    <td>${data.institution}</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                ${itemsTableHtml}
-                            </tbody>
-                        </table>
-                        
-                        ${notesHtml}
-                        ${attachmentsHtml}
+                            </table>
 
-                        <div class="signatures">
-                            <div>المنظم<span>..............................</span></div>
-                            <div>المحاسب<span>..............................</span></div>
-                            <div>المدير<span>..............................</span></div>
-                            <div>المستلم<span>..............................</span></div>
+                            <table class="items-table">
+                                <thead>
+                                    <tr>
+                                        <th>ت</th>
+                                        <th>اسم المادة</th>
+                                        <th>الفئة</th>
+                                        <th>العدد</th>
+                                        <th>المخزن</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsTableHtml}
+                                </tbody>
+                            </table>
+                            
+                            ${notesHtml}
+                            ${attachmentsHtml}
+
+                            <div class="signatures">
+                                <div>المنظم<span>..............................</span></div>
+                                <div>المحاسب<span>..............................</span></div>
+                                <div>المدير<span>..............................</span></div>
+                                <div>المستلم<span>..............................</span></div>
+                            </div>
                         </div>
-                    </div>
-                </body>
-                </html>
-            `;
+                    </body>
+                    </html>
+                `;
+                
+                const printWindow = window.open('', '_blank');
+                printWindow.document.open();
+                printWindow.document.write(htmlContent);
+                printWindow.document.close();
+                
+                setTimeout(() => {
+                    printWindow.print();
+                }, 500);
             
-            const printWindow = window.open('', '_blank');
-            printWindow.document.open();
-            printWindow.document.write(htmlContent);
-            printWindow.document.close();
-            
-            setTimeout(() => {
-                printWindow.print();
-            }, 500);
+            } catch (error) {
+                // *** إضافة: إظهار الخطأ للمستخدم ***
+                console.error("خطأ فادح في openPrintWindow:", error);
+                alert(`حدث خطأ أثناء تحضير نافذة الطباعة:\n\n${error.message}`);
+            }
         }
     </script>
 </body>
