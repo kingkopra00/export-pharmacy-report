@@ -1,370 +1,1026 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html dir="rtl" lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أداة توزيع الاحتياجات (V14)</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <title>أداة إنشاء وصولات المخزون (نسخة 9.3)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    
     <style>
-        :root { 
-            --primary-color: #005a9c; --secondary-color: #f0f8ff; 
-            --success-color: #28a745; --error-color: #dc3545; --info-color: #17a2b8;
+        :root {
+            --primary-color: #005a9c; /* لون أزرق رسمي */
+            --secondary-color: #003f6c;
+            --success-color: #10b981;
+            --danger-color: #dc2626;
+            --border-color: #d1d5db;
+            --bg-light: #f9fafb;
+            --text-dark: #1f2937;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --radius-md: 0.5rem;
+            --transition: all 0.2s ease-in-out;
         }
-        body { 
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
-            direction: rtl; background-color: #f4f6f9; margin: 20px; 
-        }
-        .container { max-width: 1000px; margin: auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1, h2 { text-align: center; color: var(--primary-color); }
-        .step { margin-bottom: 25px; padding: 20px; border: 1px dashed #ccc; border-radius: 8px; background-color: var(--secondary-color); }
-        label, h3 { font-weight: bold; margin-bottom: 8px; display: block; }
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { 
-            font-size: 1em; border: none; border-radius: 5px; cursor: pointer; 
-            color: white; padding: 10px 15px; margin-top: 5px;
-        }
-        .file-loader { border-top: 1px solid #ddd; padding-top: 15px; }
-        .file-loader .button-group { display: flex; gap: 10px; }
-        .file-loader .status { font-size: 0.9em; color: #6c757d; margin-top: 8px; }
-        .btn-repo { background-color: var(--primary-color); }
-        .btn-local { background-color: #5a6268; }
-        .btn-process { background-color: var(--primary-color); width: 100%;}
-        .btn-export { background-color: var(--info-color); }
-        .btn-print { background-color: #6c757d; }
-        .message { padding: 15px; margin-top: 20px; border-radius: 5px; text-align: center; font-weight: bold; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
-        .hidden { display: none; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
-        thead th { background-color: var(--primary-color); color: white; }
-        .button-group { display: flex; gap: 10px; }
 
-        @media print {
-            body * { visibility: hidden; }
-            #results, #results * { visibility: visible; }
-            #results { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; border: none; }
-            .button-group, #searchInput, #searchBtn, label[for="searchInput"] { display: none; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Tahoma', 'Segoe UI', sans-serif;
+            background-color: #f0f4f8;
+            color: var(--text-dark);
+            line-height: 1.6;
+            padding: 10px; /* تقليل الحاشية للموبايل */
         }
+
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+        }
+
+        h1 { font-size: 1.8rem; color: var(--secondary-color); font-weight: 700; } /* تصغير العنوان قليلاً */
+
+        .step {
+            background: white;
+            border-radius: var(--radius-md);
+            padding: 1.2rem; /* تقليل الحاشية الداخلية */
+            box-shadow: var(--shadow-md);
+            margin-bottom: 1.5rem;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .step-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px; /* تصغير */
+            height: 30px; /* تصغير */
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            font-weight: bold;
+            margin-left: 10px; /* تقريب */
+            flex-shrink: 0;
+        }
+
+        .step-title { font-size: 1.3rem; color: var(--secondary-color); font-weight: 600; } /* تصغير */
+
+        /* منطقة رفع الملفات */
+        .file-upload-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem;
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-light);
+            margin: 1.5rem 0;
+            transition: var(--transition);
+        }
+        .file-upload-container.drag-over {
+            border-color: var(--primary-color);
+            background: rgba(0, 90, 156, 0.05);
+        }
+        .file-upload-icon { font-size: 2.5rem; color: var(--primary-color); margin-bottom: 1rem; }
+        .file-upload-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.8rem;
+            font-size: 1rem;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        .file-upload-button:hover { background: var(--secondary-color); }
+        .hidden-file-input { display: none; }
+        .file-info {
+            margin-top: 1rem;
+            text-align: center;
+            color: #16a34a;
+            font-weight: bold;
+        }
+
+        /* تنسيق الفورم */
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.7rem 1.2rem;
+            font-size: 1rem;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        .btn:hover { background: var(--secondary-color); }
+        .btn-success {
+            background: var(--success-color);
+            width: 100%;
+            font-size: 1.2rem;
+            padding: 1rem;
+        }
+        .btn-success:hover { background: #0da271; }
+        .btn-danger { background: var(--danger-color); font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* عمودين متساويين */
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        .form-group { margin-bottom: 0.5rem; position: relative; }
+        .form-group.full-width { grid-column: 1 / -1; }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 1rem;
+            background: white;
+            transition: var(--transition);
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0, 90, 156, 0.2);
+        }
+        input:disabled { background-color: #f3f4f6; cursor: not-allowed; color: #555; }
+
+        .radio-group { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.5rem; padding: 0.8rem; background: var(--bg-light); border-radius: var(--radius-md); } /* تعديل: عمودي للموبايل */
+        .radio-option { display: flex; align-items: center; gap: 0.5rem; }
+        .hidden { display: none; }
+
+        /* منطقة إضافة المواد */
+        .items-entry-section {
+            grid-column: 1 / -1;
+            border: 2px solid var(--primary-color);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            background: var(--bg-light);
+        }
+        .items-entry-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr; /* 4 أعمدة للشاشات الكبيرة */
+            gap: 1rem;
+            align-items: flex-end;
+        }
+        
+        /* جدول المواد المضافة */
+        .items-table-container {
+            grid-column: 1 / -1;
+            margin-top: 1rem;
+            width: 100%;
+            overflow-x: auto; /* إضافة سكرول أفقي للجدول عند الحاجة */
+        }
+        #itemsTable {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            min-width: 600px; /* ضمان عرض الجدول حتى لو الشاشة صغيرة */
+        }
+        #itemsTable th, #itemsTable td {
+            border: 1px solid var(--border-color);
+            padding: 0.8rem;
+        }
+        #itemsTable th {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        #itemsTable td { background: white; }
+        
+        /* *** تعديل: منطقة رفع الصور المتعددة *** */
+        .image-preview-container {
+            display: block; /* *** تعديل: جعل الحاوية بلوك *** */
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            min-height: 100px;
+            border-radius: var(--radius-md);
+            background: #fff;
+        }
+        .image-preview-item {
+            position: relative;
+            display: block; /* *** تعديل: جعل الصورة بلوك *** */
+            margin-bottom: 1rem; /* *** إضافة: مسافة بين الصور *** */
+            text-align: center; /* *** إضافة: توسيط الصورة *** */
+        }
+        .image-preview-item img {
+            max-width: 300px; /* *** تعديل: عرض أكبر *** */
+            width: 90%; /* *** تعديل: عرض متجاوب *** */
+            height: auto; /* *** تعديل: الحفاظ على النسبة *** */
+            object-fit: cover;
+            border-radius: var(--radius-md);
+            border: 2px solid var(--border-color);
+        }
+        
+        /* زر حذف الصورة */
+        .delete-img-btn {
+            position: absolute;
+            top: 5px;
+            right: 10px; /* *** تعديل: تغيير المكان لليمين *** */
+            z-index: 10;
+            padding: 2px 8px;
+            font-size: 1rem;
+            line-height: 1.2;
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .delete-img-btn:hover {
+            background: #b91c1c;
+        }
+
+
+        /* قائمة الاقتراحات المخصصة */
+        .suggestions-container {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 2px solid var(--primary-color);
+            border-top: none;
+            border-radius: 0 0 var(--radius-md) var(--radius-md);
+            box-shadow: var(--shadow-md);
+            z-index: 1000;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .suggestion-item {
+            padding: 12px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background-color: var(--bg-light); }
+        
+        /* تنسيق الموبايل */
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+            .form-grid {
+                grid-template-columns: 1fr; /* عمود واحد فقط للموبايل */
+            }
+            
+            .items-entry-grid {
+                grid-template-columns: 1fr; /* جعل الحقول عمودية */
+                gap: 0.8rem;
+            }
+
+            .radio-group {
+                flex-direction: column; /* تأكيد أن الراديو عمودي */
+            }
+            
+            #itemsTable th, #itemsTable td {
+                padding: 0.5rem;
+                font-size: 0.85rem; /* تصغير خط الجدول */
+            }
+        }
+        
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>أداة توزيع الاحتياجات (V14)</h1>
-        <div id="loadingStatus" class="message success">جاري تحميل البيانات من ذاكرة المتصفح...</div>
-        <div id="step1" class="step">
-            <h3>الخطوة 1: تحميل الملفات</h3>
-            <div class="file-loader">
-                <label>1. ملف الاحتياج المرسل</label>
-                <div class="button-group">
-                    <button class="btn-repo" onclick="loadFileFromRepo('directorate')">تحميل من المستودع</button>
-                    <button class="btn-local" onclick="document.getElementById('directorateFile').click()">رفع من الجهاز</button>
+        <header>
+            <h1>أداة إنشاء وصولات المخزون</h1>
+        </header>
+
+        <div class="steps-container">
+            <div class="step" id="step1">
+                <div class="step-header">
+                    <div class="step-number">1</div>
+                    <h2 class="step-title">تحميل قاعدة بيانات المواد (CSV)</h2>
                 </div>
-                <div id="directorateStatus" class="status">الحالة: لم يتم التحميل</div>
-                <input type="file" id="directorateFile" class="hidden" onchange="loadFileFromLocal(this, 'directorate')">
+                <div class="file-upload-container" id="dropZone">
+                    <div class="file-upload-icon">📁</div>
+                    <div class="file-upload-text">
+                        <h3>اسحب ملف `Sالقاعدة.csv` وأفلته هنا</h3>
+                        <p>أو انقر لاختيار ملف</p>
+                    </div>
+                    <button type="button" class="file-upload-button" id="browseButton">اختيار ملف</button>
+                    <input type="file" id="csvFileInput" class="hidden-file-input" accept=".csv">
+                    <div class="file-info" id="fileInfo"></div>
+                </div>
             </div>
-            <br>
-            <div class="file-loader">
-                <label>2. ملف الاحتياج المعتمد</label>
-                <div class="button-group">
-                    <button class="btn-repo" onclick="loadFileFromRepo('ministry')">تحميل من المستودع</button>
-                    <button class="btn-local" onclick="document.getElementById('ministryFile').click()">رفع من الجهاز</button>
+
+            <div class="step hidden" id="step2">
+                <div class="step-header">
+                    <div class="step-number">2</div>
+                    <h2 class="step-title">إدخال بيانات الوصل</h2>
                 </div>
-                <div id="ministryStatus" class="status">الحالة: لم يتم التحميل</div>
-                <input type="file" id="ministryFile" class="hidden" onchange="loadFileFromLocal(this, 'ministry')">
+                
+                <form id="voucherForm">
+                    <div class="form-grid">
+                        
+                        <div class="form-group">
+                            <label for="institution">اسم المؤسسة (الجهة):</label>
+                            <select id="institution" required>
+                                <option value="">(اختر المؤسسة)</option>
+                                <option value="مستشفى الحسين">مستشفى الحسين</option>
+                                <option value="مستشفى النسائية">مستشفى النسائية</option>
+                                <option value="مستشفى الخضر">مستشفى الخضر</option>
+                                <option value="مستشفى الرميثة">مستشفى الرميثة</option>
+                                <option value="مستشفى الوركاء">مستشفى الوركاء</option>
+                                <option value="مستشفى المجد">مستشفى المجد</option>
+                                <option value="مستشفى الهلال">مستشفى الهلال</option>
+                                <option value="قطاع السماوة الاول">قطاع السماوة الاول</option>
+                                <option value="قطاع السماوة الثاني">قطاع السماوة الثاني</option>
+                                <option value="قطاع الرميثة">قطاع الرميثة</option>
+                                <option value="قطاع الخضر">قطاع الخضر</option>
+                                <option value="قطاع الوركاء">قطاع الوركاء</option>
+                                <option value="مركز التخصصي للسكري">مركز التخصصي للسكري</option>
+                                <option value="مركز تأهيل المعوقين">مركز تأهيل المعوقين</option>
+                                <option value="مركز الصدرية">مركز الصدرية</option>
+                                <option value="مركز الحساسية وجلدية">مركز الحساسية وجلدية</option>
+                                <option value="شركة كيماديا (جهة مجهزة)">شركة كيماديا (جهة مجهزة)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="voucherNumber">رقم الوصل (اختياري):</label>
+                            <input type="text" id="voucherNumber" placeholder="أدخل رقم الوصل إن وجد...">
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label>نوع العملية:</label>
+                            <div class="radio-group">
+                                <div class="radio-option">
+                                    <input type="radio" id="outgoing" name="operationType" value="إخراج مخزني" checked>
+                                    <label for="outgoing">تجهيز / إخراج مخزني</label>
+                                </div>
+                                <div class="radio-option">
+                                    <input type="radio" id="incoming" name="operationType" value="إدخال مخزني">
+                                    <label for="incoming">استلام / إدخال مخزني</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <fieldset class="items-entry-section">
+                            <legend style="font-weight: bold; font-size: 1.1rem; color: var(--secondary-color); margin-right: 10px;">إضافة المواد</legend>
+                            <div class="items-entry-grid">
+                                <div class="form-group">
+                                    <label for="itemMaterialName">اسم المادة:</label>
+                                    <input type="text" id="itemMaterialName" placeholder="ابحث عن المادة..." autocomplete="off">
+                                    <div id="custom-suggestions" class="suggestions-container"></div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="itemCategory">الفئة:</label>
+                                    <input type="text" id="itemCategory" disabled>
+                                </div>
+                                <div class="form-group">
+                                    <label for="itemQuantity">العدد:</label>
+                                    <input type="number" id="itemQuantity" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="itemWarehouse">المخزن:</label>
+                                    <select id="itemWarehouse">
+                                        <option value="المخزن الرئيسي">المخزن الرئيسي</option>
+                                        <option value="المخزن الفرعي أ">المخزن الفرعي أ</option>
+                                        <option value="مخزن الأدوية الخاصة">مخزن الأدوية الخاصة</option>
+                                        <option value="مخزن المستلزمات">مخزن المستلزمات</option>
+                                        <option value="غير محدد">غير محدد</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="button" id="addItemBtn" class="btn" style="margin-top: 1rem;">+ إضافة المادة للجدول</button>
+                        </fieldset>
+                        
+                        <div class="items-table-container">
+                            <label style="font-weight: bold; font-size: 1.1rem;">المواد المضافة للوصل:</label>
+                            <table id="itemsTable">
+                                <thead>
+                                    <tr>
+                                        <th>اسم المادة</th>
+                                        <th>الفئة</th>
+                                        <th>العدد</th>
+                                        <th>المخزن</th>
+                                        <th>حذف</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="itemsTableBody">
+                                    </tbody>
+                            </table>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="notes">ملاحظات (اختياري):</label>
+                            <textarea id="notes" placeholder="أدخل أي ملاحظات (رقم الباتش، تاريخ النفاذ، إلخ...)" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group full-width">
+                            <label for="documentImages">رفع المستندات (اختياري، يمكن تحديد أكثر من صورة):</label>
+                            <input type="file" id="documentImages" accept="image/*" multiple> <div class="image-preview-container" id="imagePreviewContainer">
+                                </div>
+                        </div>
+                        
+                        <div class="form-group full-width">
+                            <button type="submit" class="btn btn-success" id="generateBtn">
+                                إنشاء وصل للطباعة (أو الحفظ كـ PDF)
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
-        <div id="step2" class="step hidden">
-            </div>
-        <div id="messageArea"></div>
+
+        <footer>
+            <p>تم التطوير بواسطة الذكاء الاصطناعي لـ: دائرة صحة المثنى - قسم الصيدلية - شعبة المخازن</p>
+        </footer>
     </div>
-    
-    <template id="search-template">
-        <h3>الخطوة 2: البحث والتوزيع</h3>
-        <label for="searchInput">ابحث عن المادة</label>
-        <input type="text" id="searchInput" list="itemsDatalist" placeholder="أدخل اسم المادة أو الرمز الوطني...">
-        <datalist id="itemsDatalist"></datalist>
-        <button id="searchBtn" style="background-color: var(--success-color); width:100%; margin-top:10px;">بحث</button>
-        <div id="results" class="hidden" style="margin-top: 20px;">
-            <h2 id="itemName" style="font-size: 1.5em;"></h2>
-            <div style="display: flex; justify-content: space-around; text-align: center; background: #fafafa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <div><h4 style="margin:0; color: #555;">إجمالي المطلوب</h4><p id="total-requested" style="font-size: 1.8em; font-weight: bold; margin: 5px 0; color: #d9534f;">0</p></div>
-                <div><h4 style="margin:0; color: #555;">إجمالي المعتمد</h4><p id="total-approved" style="font-size: 1.8em; font-weight: bold; margin: 5px 0; color: #5cb85c;">0</p></div>
-            </div>
-            <h3>جدول توزيع الحصة</h3><table id="distributionTable"></table>
-            <div class="button-group">
-                <button id="exportBtn" class="btn-export">تصدير كملف CSV</button>
-                <button id="printBtn" class="btn-print">طباعة النتائج</button>
-            </div>
-        </div>
-    </template>
 
     <script>
-        let directorateData = [], ministryData = new Map(), uniqueItems = new Map(), lastSearchResults = [];
+        // --- تعريف المتغيرات العامة ---
+        let materialsMap = new Map();
+        let addedItems = [];
+        let addedImageFiles = []; // *** إضافة: مصفوفة لتخزين ملفات الصور ***
 
-        // --- IndexedDB Functions for Caching ---
-        const dbName = 'FileCacheDB';
-        let db;
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        const csvFileInput = document.getElementById('csvFileInput');
+        const browseButton = document.getElementById('browseButton');
+        const dropZone = document.getElementById('dropZone');
+        const fileInfo = document.getElementById('fileInfo');
+        const voucherForm = document.getElementById('voucherForm');
+        
+        // عناصر الفورم الفرعي (لإضافة مادة)
+        const itemMaterialNameInput = document.getElementById('itemMaterialName');
+        const itemCategoryInput = document.getElementById('itemCategory');
+        const itemQuantityInput = document.getElementById('itemQuantity');
+        const itemWarehouseInput = document.getElementById('itemWarehouse');
+        const addItemBtn = document.getElementById('addItemBtn');
+        const itemsTableBody = document.getElementById('itemsTableBody');
+        const suggestionsBox = document.getElementById('custom-suggestions');
+        
+        // عناصر رفع الصور المتعددة
+        const documentImagesInput = document.getElementById('documentImages');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
 
-        function openDb() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, 1);
-                request.onerror = () => reject("Error opening DB");
-                request.onsuccess = (event) => {
-                    db = event.target.result;
-                    resolve(db);
-                };
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    db.createObjectStore('files', { keyPath: 'id' });
-                };
+        // --- المستمعين للأحداث ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // تحميل CSV
+            browseButton.addEventListener('click', () => csvFileInput.click());
+            csvFileInput.addEventListener('change', handleFileSelect);
+            dropZone.addEventListener('dragover', handleDragOver);
+            dropZone.addEventListener('dragleave', handleDragLeave);
+            dropZone.addEventListener('drop', handleDrop);
+            
+            // فورم إضافة المواد
+            itemMaterialNameInput.addEventListener('input', handleMaterialInput);
+            addItemBtn.addEventListener('click', addItemToTable);
+            itemsTableBody.addEventListener('click', handleTableClick); // لحذف الصفوف
+
+            // *** تعديل: تغيير مستمع الصور ***
+            documentImagesInput.addEventListener('change', handleImageUpload);
+            // *** إضافة: مستمع لحذف الصور ***
+            imagePreviewContainer.addEventListener('click', handleImageDelete);
+
+            // إنشاء الوصل النهائي
+            voucherForm.addEventListener('submit', generateVoucher);
+
+            // إغلاق قائمة الاقتراحات
+            document.addEventListener('click', (e) => {
+                if (e.target.id !== 'itemMaterialName' && !suggestionsBox.contains(e.target)) {
+                    suggestionsBox.style.display = 'none';
+                }
             });
-        }
-
-        function saveFileToDb(id, blob) {
-            return new Promise((resolve, reject) => {
-                const transaction = db.transaction(['files'], 'readwrite');
-                const store = transaction.objectStore('files');
-                const request = store.put({ id, blob });
-                request.onsuccess = () => resolve();
-                request.onerror = () => reject("Error saving file");
-            });
-        }
-
-        function loadFileFromDb(id) {
-            return new Promise((resolve, reject) => {
-                const transaction = db.transaction(['files'], 'readonly');
-                const store = transaction.objectStore('files');
-                const request = store.get(id);
-                request.onsuccess = (event) => {
-                    resolve(event.target.result ? event.target.result.blob : null);
-                };
-                request.onerror = () => reject("Error loading file");
-            });
-        }
-        // --- End IndexedDB Functions ---
-
-
-        const sanitizeString = (str) => String(str || '').replace(/\s+/g, ' ').trim();
-        const formatNumber = (num) => Math.round(Number(num)).toLocaleString('en-US');
-
-        const fileConfigs = {
-            directorate: { name: 'احتياج ٢٠٢٥.xlsx', statusEl: 'directorateStatus', dataVar: 'directorateData', processor: processDirectorateData },
-            ministry: { name: 'المعتمد ٢٠٢٥.xlsx', statusEl: 'ministryStatus', dataVar: 'ministryData', processor: processMinistryData }
-        };
-
-        // Main logic starts here
-        window.onload = async () => {
-            try {
-                await openDb();
-                document.getElementById('loadingStatus').innerText = '✅ جاهز للعمل.';
-                // Try to load both files from cache
-                const dirBlob = await loadFileFromDb('directorate');
-                const minBlob = await loadFileFromDb('ministry');
-                
-                if (dirBlob) await processFile(dirBlob, 'directorate', 'ذاكرة المتصفح');
-                if (minBlob) await processFile(minBlob, 'ministry', 'ذاكرة المتصفح');
-
-            } catch (error) {
-                document.getElementById('loadingStatus').className = 'message error';
-                document.getElementById('loadingStatus').innerText = 'حدث خطأ في تحميل الذاكرة.';
-                console.error(error);
-            }
-        };
-
-        async function loadFileFromRepo(type) {
-            const config = fileConfigs[type];
-            const statusEl = document.getElementById(config.statusEl);
-            statusEl.innerText = `الحالة: جاري التحميل من المستودع...`;
-            try {
-                const response = await fetch(config.name);
-                if (!response.ok) throw new Error(`لم يتم العثور على الملف "${config.name}" في المستودع.`);
-                const blob = await response.blob();
-                await processFile(blob, type, 'المستودع');
-                await saveFileToDb(type, blob);
-            } catch (e) {
-                statusEl.innerText = `الحالة: فشل التحميل. ${e.message}`;
-            }
-        }
-
-        async function loadFileFromLocal(inputElement, type) {
-            if (inputElement.files.length === 0) return;
-            const file = inputElement.files[0];
-            await processFile(file, type, 'الجهاز المحلي');
-            await saveFileToDb(type, file);
-        }
-
-        async function processFile(fileBlob, type, source) {
-            const config = fileConfigs[type];
-            const statusEl = document.getElementById(config.statusEl);
-            try {
-                const workbook = await readExcelBlob(fileBlob);
-                await config.processor(workbook);
-                statusEl.innerHTML = `✅ تم التحميل بنجاح من: <strong>${source}</strong>`;
-                checkIfReady();
-            } catch (e) {
-                statusEl.innerText = `الحالة: فشل التحليل. ${e.message}`;
-                console.error(e);
-            }
-        }
-
-        const readExcelBlob = (blob) => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = e => { try { resolve(XLSX.read(e.target.result, { type: 'array' })); } catch(err) { reject(err); }};
-            reader.onerror = e => reject(new Error("فشل في قراءة الملف"));
-            reader.readAsArrayBuffer(blob);
+            
+            // تهيئة الجدول
+            renderItemsTable();
         });
 
-        function processDirectorateData(workbook) {
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const sheetAsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-            const mainHeaderRowIndex = sheetAsArray.findIndex(row => row.some(cell => sanitizeString(cell) === 'NATIONAL CODE'));
-            if (mainHeaderRowIndex === -1) throw new Error("لم يتم العثور على 'NATIONAL CODE'");
-            const mainHeaders = sheetAsArray[mainHeaderRowIndex].map(h => sanitizeString(h));
-            const institutionHeaders = (sheetAsArray[mainHeaderRowIndex - 1] || []).map(h => sanitizeString(h));
-            const itemCodeIndex = mainHeaders.indexOf('NATIONAL CODE');
-            const itemNameIndex = mainHeaders.indexOf('ITEMS');
-            const institutionColumns = institutionHeaders.map((h, i) => ({h, i})).filter(c => c.h.startsWith('احتياج') && !c.h.startsWith('احتياج عام') && c.h !== 'احتياج 2025');
-            if (institutionColumns.length === 0) throw new Error("لم يتم العثور على أعمدة احتياج.");
-            
-            const transformedData = [];
-            uniqueItems.clear();
-            const dataRows = sheetAsArray.slice(mainHeaderRowIndex + 1);
-            dataRows.forEach(row => {
-                const itemCode = sanitizeString(row[itemCodeIndex]);
-                const itemName = sanitizeString(row[itemNameIndex]);
-                if (!itemCode || !itemName) return;
-                if (!uniqueItems.has(itemCode)) { uniqueItems.set(itemCode, itemName); }
-                institutionColumns.forEach(col => {
-                    transformedData.push({
-                        institution: col.h, item_code: itemCode,
-                        item_name: itemName, quantity_requested: Number(row[col.i]) || 0
-                    });
+        // --- وظائف تحميل CSV (كما هي) ---
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) { processFile(file); }
+        }
+        function handleDragOver(event) {
+            event.preventDefault();
+            dropZone.classList.add('drag-over');
+        }
+        function handleDragLeave(event) {
+            event.preventDefault();
+            dropZone.classList.remove('drag-over');
+        }
+        function handleDrop(event) {
+            event.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const file = event.dataTransfer.files[0];
+            if (file && file.name.endsWith('.csv')) {
+                processFile(file);
+            } else {
+                alert('الرجاء إفلات ملف CSV صالح فقط.');
+            }
+        }
+        function processFile(file) {
+            fileInfo.textContent = `جاري تحليل الملف: ${file.name}...`;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csvText = e.target.result;
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    encoding: "UTF-8",
+                    complete: function(results) {
+                        if (!results.data || results.data.length === 0 || !results.meta.fields.includes("Name")) {
+                             alert("خطأ: الملف فارغ أو لا يحتوي على عمود 'Name'. تأكد من أن الملف صحيح.");
+                             fileInfo.textContent = "فشل التحليل. حاول مرة أخرى.";
+                             return;
+                        }
+                        
+                        materialsMap.clear();
+                        let count = 0;
+                        results.data.forEach(row => {
+                            if (row.Name && row.Name.trim() !== "") {
+                                const name = row.Name.trim();
+                                const category = row.Category ? row.Category.trim() : "غير مصنف";
+                                materialsMap.set(name, category);
+                                count++;
+                            }
+                        });
+                        
+                        fileInfo.textContent = `✅ تم تحميل ${count} مادة بنجاح!`;
+                        fileInfo.style.color = 'var(--success-color)';
+                        
+                        step1.style.display = 'none';
+                        step2.classList.remove('hidden');
+                    },
+                    error: (error) => {
+                        console.error('خطأ في PapaParse:', error);
+                        alert('حدث خطأ أثناء تحليل البيانات.');
+                        fileInfo.textContent = "فشل التحليل. حاول مرة أخرى.";
+                    }
                 });
-            });
-            directorateData = transformedData;
+            };
+            reader.onerror = () => {
+                 console.error("خطأ في FileReader:", reader.error);
+                 alert("لا يمكن قراءة الملف. تأكد من أنك سمحت للمتصفح بالوصول للملفات.");
+                 fileInfo.textContent = "فشل قراءة الملف.";
+            };
+            reader.readAsText(file, "UTF-8");
         }
 
-        function processMinistryData(workbook) {
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const sheetAsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-            const mainHeaderRowIndex = sheetAsArray.findIndex(row => row.some(cell => sanitizeString(cell) === 'NATIONAL CODE'));
-            if (mainHeaderRowIndex === -1) throw new Error("لم يتم العثور على 'NATIONAL CODE'");
-            const mainHeaders = sheetAsArray[mainHeaderRowIndex].map(h => sanitizeString(h));
-            const topHeaders = (sheetAsArray[mainHeaderRowIndex - 1] || []).map(h => sanitizeString(h));
-            const itemCodeIndex = mainHeaders.indexOf('NATIONAL CODE');
-            const approvedQtyCol = topHeaders.map((h, i) => ({h, i})).find(c=>c.h.includes('دائرة صحة المثنى'));
-            if (!approvedQtyCol) throw new Error("لم يتم العثور على عمود 'دائرة صحة المثنى'.");
+        // --- وظائف القائمة المنسدلة المخصصة (كما هي) ---
+        function handleMaterialInput(event) {
+            const currentName = event.target.value;
+            updateCategory(currentName);
+            showSuggestions(currentName);
+        }
+        function updateCategory(name) {
+            const materialName = name.trim();
+            itemCategoryInput.value = materialsMap.get(materialName) || '';
+        }
+        function showSuggestions(inputText) {
+            suggestionsBox.innerHTML = '';
+            if (inputText.length === 0) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
+            const allNames = Array.from(materialsMap.keys());
+            const matchingSuggestions = allNames.filter(name => 
+                name.toLowerCase().includes(inputText.toLowerCase())
+            ).slice(0, 7);
             
-            ministryData.clear();
-            const dataRows = sheetAsArray.slice(mainHeaderRowIndex + 1);
-            dataRows.forEach(row => {
-                const ic = sanitizeString(row[itemCodeIndex]);
-                if (ic) ministryData.set(ic, Number(row[approvedQtyCol.i]) || 0);
+            if (matchingSuggestions.length === 0) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
+            
+            matchingSuggestions.forEach(name => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.textContent = name;
+                item.addEventListener('click', () => {
+                    itemMaterialNameInput.value = name;
+                    suggestionsBox.style.display = 'none';
+                    updateCategory(name);
+                });
+                suggestionsBox.appendChild(item);
             });
+            suggestionsBox.style.display = 'block';
         }
 
-        function checkIfReady() {
-            if (directorateData.length > 0 && ministryData.size > 0) {
-                document.getElementById('step2').innerHTML = document.getElementById('search-template').innerHTML;
-                document.getElementById('step2').classList.remove('hidden');
-                document.getElementById('searchBtn').addEventListener('click', performSearch);
-                document.getElementById('searchInput').addEventListener('keyup', (e) => { if (e.key === 'Enter') performSearch(); });
-                document.getElementById('exportBtn').addEventListener('click', exportToCsv);
-                document.getElementById('printBtn').addEventListener('click', () => window.print());
-                
-                const datalist = document.getElementById('itemsDatalist');
-                datalist.innerHTML = '';
-                for (const [code, name] of uniqueItems.entries()) {
-                    const option = document.createElement('option');
-                    option.dataset.code = code;
-                    option.value = name;
-                    datalist.appendChild(option);
-                }
+        // --- وظائف إدارة جدول المواد (كما هي) ---
+        function addItemToTable() {
+            const name = itemMaterialNameInput.value.trim();
+            const category = itemCategoryInput.value.trim();
+            const quantity = parseInt(itemQuantityInput.value);
+            const warehouse = itemWarehouseInput.value;
+
+            if (!materialsMap.has(name)) {
+                alert("الرجاء اختيار مادة صالحة من القائمة أولاً.");
+                return;
+            }
+            if (isNaN(quantity) || quantity <= 0) {
+                alert("الرجاء إدخال عدد (كمية) صالحة.");
+                return;
+            }
+
+            addedItems.push({ name, category, quantity, warehouse });
+            renderItemsTable();
+
+            itemMaterialNameInput.value = '';
+            itemCategoryInput.value = '';
+            itemQuantityInput.value = '';
+        }
+
+        function renderItemsTable() {
+            itemsTableBody.innerHTML = ''; // مسح الجدول القديم
+            if (addedItems.length === 0) {
+                 itemsTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 10px;">لم تتم إضافة أي مواد بعد.</td></tr>';
+                 return;
+            }
+            
+            addedItems.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.category}</td>
+                    <td>${item.quantity}</td>
+                    <td>${item.warehouse}</td>
+                    <td>
+                        <button type="button" class="btn btn-danger delete-item-btn" data-index="${index}">
+                            &times;
+                        </button>
+                    </td>
+                `;
+                itemsTableBody.appendChild(row);
+            });
+        }
+        
+        function handleTableClick(event) {
+            if (event.target.classList.contains('delete-item-btn')) {
+                const index = parseInt(event.target.getAttribute('data-index'));
+                addedItems.splice(index, 1);
+                renderItemsTable();
             }
         }
         
-        // performSearch and exportToCsv functions remain the same as the previous final version.
-        function performSearch() {
-            const searchInput = document.getElementById('searchInput');
-            const inputValue = sanitizeString(searchInput.value);
-            const resultsDiv = document.getElementById('results');
-            if (!inputValue) return;
-            let definitiveCode = null;
-            const options = document.getElementById('itemsDatalist').options;
-            for (let i = 0; i < options.length; i++) {
-                if (sanitizeString(options[i].value) === inputValue) {
-                    definitiveCode = sanitizeString(options[i].dataset.code);
-                    break;
-                }
-            }
-            let relevantEntries;
-            if (definitiveCode) {
-                relevantEntries = directorateData.filter(row => row.item_code === definitiveCode);
-            } else {
-                const query = inputValue.toLowerCase();
-                relevantEntries = directorateData.filter(row => row.item_code.toLowerCase().includes(query) || (row.item_name && row.item_name.toLowerCase().includes(query)));
-            }
-            lastSearchResults = relevantEntries;
-            if (relevantEntries.length === 0) {
-                resultsDiv.classList.add('hidden');
-                alert("لم يتم العثور على المادة المطلوبة.");
-                return;
-            }
-            const itemCode = relevantEntries[0].item_code;
-            const itemName = relevantEntries[0].item_name;
-            const totalRequested = relevantEntries.reduce((sum, row) => sum + row.quantity_requested, 0);
-            const totalApproved = ministryData.get(itemCode) || 0;
-            resultsDiv.classList.remove('hidden');
-            document.getElementById('itemName').innerHTML = `نتائج البحث لـ: <strong>${itemName}</strong> (الرمز: ${itemCode})`;
-            document.getElementById('total-requested').innerText = formatNumber(totalRequested);
-            document.getElementById('total-approved').innerText = formatNumber(totalApproved);
-            const table = document.getElementById('distributionTable');
-            table.innerHTML = `<thead><tr><th>المؤسسة الصحية</th><th>الكمية المطلوبة</th><th>النسبة من الإجمالي</th><th>الحصة المعتمدة</th></tr></thead><tbody></tbody>`;
-            const tbody = table.querySelector('tbody');
-            relevantEntries.forEach(entry => {
-                const requested = entry.quantity_requested;
-                const percentage = (totalRequested > 0) ? (requested / totalRequested) * 100 : 0;
-                const share = (totalRequested > 0) ? (requested / totalRequested) * totalApproved : 0;
-                tbody.innerHTML += `<tr>
-                    <td>${entry.institution}</td>
-                    <td>${formatNumber(requested)}</td>
-                    <td>${percentage.toFixed(2)}%</td>
-                    <td><b>${formatNumber(share)}</b></td>
-                </tr>`;
-            });
+        // --- *** وظائف جديدة لإدارة الصور المتعددة *** ---
+        
+        // 1. عند اختيار ملفات جديدة
+        function handleImageUpload(event) {
+            const newFiles = Array.from(event.target.files);
+            
+            // إضافة الملفات الجديدة إلى المصفوفة العامة
+            addedImageFiles.push(...newFiles);
+            
+            // إعادة عرض كل الصور
+            renderImagePreviews();
+            
+            // تفريغ حقل الإدخال للسماح بإضافة المزيد
+            documentImagesInput.value = null;
         }
 
-        function exportToCsv() {
-            if (lastSearchResults.length === 0) {
-                alert("لا توجد بيانات لتصديرها."); return;
-            }
-            const itemCode = lastSearchResults[0].item_code;
-            const itemName = lastSearchResults[0].item_name;
-            const totalRequested = lastSearchResults.reduce((sum, row) => sum + row.quantity_requested, 0);
-            const totalApproved = ministryData.get(itemCode) || 0;
-            let csvContent = `اسم المادة,"${itemName}"\n`;
-            csvContent += `الرمز الوطني,"${itemCode}"\n`;
-            csvContent += `إجمالي الكمية المطلوبة,${totalRequested}\n`;
-            csvContent += `إجمالي الكمية المعتمدة,${totalApproved}\n\n`;
-            const headers = ["المؤسسة الصحية", "الكمية المطلوبة", "النسبة من الإجمالي", "الحصة المعتمدة"];
-            csvContent += headers.join(',') + '\n';
-            lastSearchResults.forEach(entry => {
-                const requested = entry.quantity_requested;
-                const percentage = (totalRequested > 0) ? (requested / totalRequested) * 100 : 0;
-                const share = (totalRequested > 0) ? (requested / totalRequested) * totalApproved : 0;
-                csvContent += `"${entry.institution}",${requested},"${percentage.toFixed(2)}%",${Math.round(share)}\n`;
+        // 2. عرض الصور بناءً على المصفوفة العامة
+        function renderImagePreviews() {
+            imagePreviewContainer.innerHTML = ''; // مسح المعاينة القديمة
+            
+            addedImageFiles.forEach((file, index) => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.type = 'button';
+                        deleteBtn.className = 'btn btn-danger delete-img-btn';
+                        deleteBtn.innerHTML = '&times;';
+                        deleteBtn.setAttribute('data-index', index); // مهم: تحديد index للحذف
+                        
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'image-preview-item';
+                        itemDiv.appendChild(deleteBtn); // إضافة زر الحذف
+                        itemDiv.appendChild(img);
+                        
+                        imagePreviewContainer.appendChild(itemDiv);
+                    };
+                    reader.readAsDataURL(file);
+                }
             });
-            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            const fileName = `${sanitizeString(itemName)}.csv`;
-            link.setAttribute('download', fileName);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+        }
+        
+        // 3. وظيفة حذف الصورة
+        function handleImageDelete(event) {
+            if (event.target.classList.contains('delete-img-btn')) {
+                const index = parseInt(event.target.getAttribute('data-index'));
+                addedImageFiles.splice(index, 1); // حذف الملف من المصفوفة
+                renderImagePreviews(); // إعادة رسم المعاينة
+            }
+        }
+        
+        // --- *** وظيفة جديدة لإنشاء اسم الملف *** ---
+        function generateFilename(institution, items) {
+            const today = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+            
+            // تنظيف اسم المؤسسة (استبدال المسافات بـ '_')
+            const instName = institution.replace(/ /g, '_');
+            
+            // جلب أسماء المخازن الفريدة وتنظيفها
+            const uniqueWarehouses = [...new Set(items.map(item => item.warehouse.replace(/ /g, '_')))].join('-');
+            
+            // تنسيق: تجهيز-اسم_المستشفى-اسم_المخزن1-اسم_المخزن2-تاريخ
+            return `تجهيز-${instName}-${uniqueWarehouses}-${today}`;
+        }
+        
+        // --- *** وظيفة مُعدلة لإنشاء الوصل (تدعم المواد والصور المتعددة) *** ---
+        async function generateVoucher(event) {
+            event.preventDefault(); 
+
+            // 1. التحقق من صحة الفورم الأساسي
+            if (document.getElementById('institution').value === "") {
+                 alert("الرجاء اختيار اسم المؤسسة (الجهة).");
+                 return;
+            }
+            // 2. التحقق من إضافة مواد
+            if (addedItems.length === 0) {
+                alert("الرجاء إضافة مادة واحدة على الأقل للجدول قبل إنشاء الوصل.");
+                return;
+            }
+
+            // 3. جمع البيانات الأساسية
+            const formData = {
+                operationType: document.querySelector('input[name="operationType"]:checked').value,
+                institution: document.getElementById('institution').value,
+                voucherNumber: document.getElementById('voucherNumber').value || "غير محدد",
+                notes: document.getElementById('notes').value.trim(),
+                currentDate: new Date().toLocaleString('ar-IQ', { dateStyle: 'full', timeStyle: 'short' })
+            };
+            
+            const instLabel = (formData.operationType === 'إدخال مخزني') ? 'الجهة المجهزة' : 'الجهة المستلمة';
+
+            // 4. معالجة الصور المتعددة (من مصفوفتنا الخاصة)
+            const imageFiles = addedImageFiles; // *** تعديل: استخدام مصفوفتنا ***
+            const imagesBase64 = [];
+            
+            const imagePromises = imageFiles.map(file => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsDataURL(file);
+                });
+            });
+
+            try {
+                const loadedImages = await Promise.all(imagePromises);
+                imagesBase64.push(...loadedImages);
+                
+                // *** إضافة: إنشاء اسم الملف الديناميكي ***
+                const dynamicFilename = generateFilename(formData.institution, addedItems);
+                
+                // 5. الآن، افتح نافذة الطباعة
+                openPrintWindow(formData, instLabel, addedItems, imagesBase64, dynamicFilename);
+
+            } catch (error) {
+                console.error("خطأ أثناء تحميل الصور:", error);
+                alert("حدث خطأ أثناء معالجة الصور المرفقة.");
+            }
+        }
+        
+        // --- *** وظيفة مُعدلة لفتح نافذة الطباعة (التصميم الرسمي) *** ---
+        function openPrintWindow(data, instLabel, items, imagesBase64, dynamicFilename) {
+            
+            const printStyles = `
+                body {
+                    font-family: 'Tahoma', sans-serif;
+                    color: #000;
+                    margin: 0;
+                    padding: 10px;
+                    background: #fff;
+                }
+                .voucher-container {
+                    width: 95%;
+                    margin: 20px auto;
+                    padding: 20px;
+                    border: 2px solid #000;
+                }
+                .header-container {
+                    text-align: center;
+                    border-bottom: 2px solid #000;
+                    padding-bottom: 10px;
+                }
+                h1 {
+                    font-size: 1.5rem;
+                    margin: 0;
+                }
+                h2 {
+                    font-size: 1.3rem;
+                    margin: 5px 0;
+                }
+                .doc-info {
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 10px 0;
+                    font-size: 1rem;
+                    font-weight: bold;
+                }
+                .info-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 20px 0;
+                    font-size: 1rem;
+                }
+                .info-table th, .info-table td {
+                    border: 1px solid #777;
+                    padding: 8px;
+                    text-align: right;
+                }
+                .info-table th {
+                    background-color: #f0f0f0;
+                    width: 120px;
+                }
+                
+                .items-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                    font-size: 1rem;
+                }
+                .items-table th, .items-table td {
+                    border: 1px solid #000;
+                    padding: 8px;
+                    text-align: center;
+                }
+                .items-table th {
+                    background-color: #e0e0e0;
+                }
+                .items-table td:nth-child(2) { /* عمود اسم المادة */
+                     text-align: right;
+                     width: 40%;
+                }
+                .signatures {
+                    margin-top: 50px;
+                    display: flex;
+                    justify-content: space-around;
+                    font-size: 1rem;
+                    font-weight: bold;
+                }
+                .signatures div {
+                    text-align: center;
+                }
+                .signatures span {
+                    display: block;
+                    margin-top: 40px;
+                    padding-top: 5px;
+                }
+                .notes-section, .attachments-section {
+                    margin-top: 20px;
+                }
+                .notes-section p {
+                    white-space: pre-wrap;
+                    border: 1px solid #ccc;
+                    padding: 10px;
+                    min-height: 50px;
+                }
+                
+                /* *** تعديل: تنسيق الصور في الطباعة (عمودي) *** */
+                .attachments-section img {
+                    max-width: 90%; /* عرض أكبر */
+                    display: block; /* جعلها بلوك */
+                    border: 1px solid #ccc;
+                    margin: 10px auto; /* مسافة وتوسيط */
+                }
+                
+                /* تنسيقات الطباعة */
+                @media print {
+                    @page { size: A4; margin: 1cm; }
+                    body { margin: 0; }
+                    .voucher-container { border: none; box-shadow: none; width: 100%; }
+                    .attachments-section {
+                        page-break-before: always; /* بدء المرفقات في صفحة جديدة */
+                    }
+                }
+            `;
+            
+            // --- بناء جدول المواد ---
+            let itemsTableHtml = '';
+            items.forEach((item, index) => {
+                itemsTableHtml += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${item.name}</td>
+                        <td>${item.category}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.warehouse}</td>
+                    </tr>
+                `;
+            });
+            
+            // --- بناء قسم المرفقات ---
+            let attachmentsHtml = '';
+            if (imagesBase64.length > 0) {
+                attachmentsHtml = '<div class="attachments-section"><h3>المرفقات:</h3>';
+                imagesBase64.forEach(imgSrc => {
+                    attachmentsHtml += `<img src="${imgSrc}" alt="مرفق">`;
+                });
+                attachmentsHtml += '</div>';
+            }
+            
+            // --- بناء قسم الملاحظات ---
+            let notesHtml = '';
+            if (data.notes) {
+                notesHtml = `
+                    <div class="notes-section">
+                        <h3>ملاحظات:</h3>
+                        <p>${data.notes}</p>
+                    </div>
+                `;
+            }
+
+            // --- بناء الصفحة الكاملة ---
+            let htmlContent = `
+                <!DOCTYPE html>
+                <html dir="rtl" lang="ar">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>${dynamicFilename}</title>
+                    <style>${printStyles}</style>
+                </head>
+                <body>
+                    <div class="voucher-container">
+                        <div class="header-container">
+                            <h1>الجمهورية العراقية</h1>
+                            <h2>وزارة الصحة / دائرة صحة المثنى</h2>
+                        </div>
+                        
+                        <div class="doc-info">
+                            <span>التاريخ: ${data.currentDate}</span>
+                            <span>رقم الوصل: ${data.voucherNumber}</span>
+                        </div>
+                        
+                        <h2 style="text-align:center; background: #e0e0e0; padding: 5px;">وصل ${data.operationType}</h2>
+                        
+                        <table class="info-table">
+                            <tr>
+                                <th>${instLabel}</th>
+                                <td>${data.institution}</td>
+                            </tr>
+                        </table>
+
+                        <table class="items-table">
+                            <thead>
+                                <tr>
+                                    <th>ت</th>
+                                    <th>اسم المادة</th>
+                                    <th>الفئة</th>
+                                    <th>العدد</th>
+                                    <th>المخزن</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsTableHtml}
+                            </tbody>
+                        </table>
+                        
+                        ${notesHtml}
+                        ${attachmentsHtml}
+
+                        <div class="signatures">
+                            <div>المنظم<span>..............................</span></div>
+                            <div>المحاسب<span>..............................</span></div>
+                            <div>المدير<span>..............................</span></div>
+                            <div>المستلم<span>..............................</span></div>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.open();
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            
+            setTimeout(() => {
+                printWindow.print();
+            }, 500);
         }
     </script>
 </body>
