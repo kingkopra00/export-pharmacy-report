@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أداة إنشاء وصولات المخزون (نسخة 9.4 - إصلاح الأخطاء)</title>
+    <title>أداة إنشاء وصولات المخزون (نسخة 9.5 - إصلاح الأخطاء)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     
     <style>
@@ -211,7 +211,7 @@
         
         /* منطقة رفع الصور المتعددة */
         .image-preview-container {
-            display: block; /* *** تعديل: جعل الحاوية بلوك *** */
+            display: block; 
             margin-top: 1rem;
             border: 1px solid var(--border-color);
             padding: 1rem;
@@ -221,14 +221,14 @@
         }
         .image-preview-item {
             position: relative;
-            display: block; /* *** تعديل: جعل الصورة بلوك *** */
-            margin-bottom: 1rem; /* *** إضافة: مسافة بين الصور *** */
-            text-align: center; /* *** إضافة: توسيط الصورة *** */
+            display: block; 
+            margin-bottom: 1rem; 
+            text-align: center; 
         }
         .image-preview-item img {
-            max-width: 300px; /* *** تعديل: عرض أكبر *** */
-            width: 90%; /* *** تعديل: عرض متجاوب *** */
-            height: auto; /* *** تعديل: الحفاظ على النسبة *** */
+            max-width: 300px; 
+            width: 90%; 
+            height: auto; 
             object-fit: cover;
             border-radius: var(--radius-md);
             border: 2px solid var(--border-color);
@@ -238,7 +238,7 @@
         .delete-img-btn {
             position: absolute;
             top: 5px;
-            right: 10px; /* *** تعديل: تغيير المكان لليمين *** */
+            right: 10px; 
             z-index: 10;
             padding: 2px 8px;
             font-size: 1rem;
@@ -537,45 +537,58 @@
                 alert('الرجاء إفلات ملف CSV صالح فقط.');
             }
         }
+        
+        // --- *** تعديل: وظيفة معالجة الملف *** ---
         function processFile(file) {
             fileInfo.textContent = `جاري تحليل الملف: ${file.name}...`;
             const reader = new FileReader();
             reader.onload = function(e) {
                 const csvText = e.target.result;
-                Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                    encoding: "UTF-8",
-                    complete: function(results) {
-                        if (!results.data || results.data.length === 0 || !results.meta.fields.includes("Name")) {
-                             alert("خطأ: الملف فارغ أو لا يحتوي على عمود 'Name'. تأكد من أن الملف صحيح.");
-                             fileInfo.textContent = "فشل التحليل. حاول مرة أخرى.";
-                             return;
-                        }
-                        
-                        materialsMap.clear();
-                        let count = 0;
-                        results.data.forEach(row => {
-                            if (row.Name && row.Name.trim() !== "") {
-                                const name = row.Name.trim();
-                                const category = row.Category ? row.Category.trim() : "غير مصنف";
-                                materialsMap.set(name, category);
-                                count++;
+                
+                // *** إضافة: try...catch هنا أيضاً ***
+                try {
+                    Papa.parse(csvText, {
+                        header: true,
+                        skipEmptyLines: true,
+                        encoding: "UTF-8",
+                        complete: function(results) {
+                            
+                            // *** تعديل: الفحص الجديد والأكثر أماناً ***
+                            if (!results || !results.data || !results.meta || !results.meta.fields || !results.meta.fields.includes("Name")) {
+                                 alert("خطأ: الملف فارغ أو لا يحتوي على عمود 'Name'. تأكد من أن الملف صحيح (يحتوي على 'Name' و 'Category' في السطر الأول).");
+                                 fileInfo.textContent = "فشل التحليل. حاول مرة أخرى.";
+                                 return;
                             }
-                        });
-                        
-                        fileInfo.textContent = `✅ تم تحميل ${count} مادة بنجاح!`;
-                        fileInfo.style.color = 'var(--success-color)';
-                        
-                        step1.style.display = 'none';
-                        step2.classList.remove('hidden');
-                    },
-                    error: (error) => {
-                        console.error('خطأ في PapaParse:', error);
-                        alert('حدث خطأ أثناء تحليل البيانات.');
-                        fileInfo.textContent = "فشل التحليل. حاول مرة أخرى.";
-                    }
-                });
+                            
+                            materialsMap.clear();
+                            let count = 0;
+                            results.data.forEach(row => {
+                                if (row.Name && row.Name.trim() !== "") {
+                                    const name = row.Name.trim();
+                                    const category = row.Category ? row.Category.trim() : "غير مصنف";
+                                    materialsMap.set(name, category);
+                                    count++;
+                                }
+                            });
+                            
+                            fileInfo.textContent = `✅ تم تحميل ${count} مادة بنجاح!`;
+                            fileInfo.style.color = 'var(--success-color)';
+                            
+                            step1.style.display = 'none';
+                            step2.classList.remove('hidden');
+                        },
+                        error: (error) => {
+                            console.error('خطأ في PapaParse:', error);
+                            alert('حدث خطأ أثناء تحليل البيانات: ' + error.message);
+                            fileInfo.textContent = "فشل التحليل. حاول مرة أخرى.";
+                        }
+                    });
+                } catch (error) {
+                    // *** إضافة: لالتقاط أي خطأ آخر في التحليل ***
+                    console.error('خطأ فادح في PapaParse:', error);
+                    alert(`حدث خطأ فادح أثناء التحليل:\n\n${error.message}`);
+                    fileInfo.textContent = "فشل التحليل. حاول مرة أخرى.";
+                }
             };
             reader.onerror = () => {
                  console.error("خطأ في FileReader:", reader.error);
@@ -584,6 +597,7 @@
             };
             reader.readAsText(file, "UTF-8");
         }
+
 
         // --- وظائف القائمة المنسدلة المخصصة (كما هي) ---
         function handleMaterialInput(event) {
